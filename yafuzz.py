@@ -168,7 +168,7 @@ def parse_response(res, ext, pld, method, banned, took_t):
     
     match = re.findall(ext, res_raw, re.MULTILINE) if ext else False
     if match and len(match) > 0:
-        if type(match[0]) != str:
+        if type(match[0]) == tuple:
             match = list(match[0]) 
     
     if ext:
@@ -248,7 +248,7 @@ if __name__ == "__main__":
             "proxy": {'all': args.proxy} if args.proxy and re.match('https*://.+', args.proxy) else {}
         }
     except Exception as e:
-        print(repr(e))
+        log("error", repr(e))
         parser.print_help()
         sys.exit(1)
         
