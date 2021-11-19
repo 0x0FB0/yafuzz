@@ -1,9 +1,6 @@
 # yafuzz
 Yet another web fuzzer
 
-![demo](yafuzz.gif)
-
----
 ## Usage
 
 This script can run in two modes of operation.
@@ -27,6 +24,9 @@ Key features:
 - Verbose output, including full response body can be enabled by `-V` or `--verbose` tag 
 - Proxy for outgoing requests can be configured through `-X` or `--proxy` argument
 
+## Demo
+
+![demo](yafuzz.gif)
 
 ```
 usage: yafuzz.py [-h] --url URL [--wordlist WORDLIST] [--extract EXTRACT]
