@@ -4,8 +4,13 @@ Yet another web fuzzer
 ## Usage
 
 This script can run in two modes of operation.
+
 Supplying a wordlist `-W` argument will initiate a multithreaded fuzzing session.
+
 Lack of wordlist `-W` tag will run this script in interactive inline mode.
+
+Use Burp Pro instead if you have one.
+
 Key features:
 - Fuzzer will replace all `[INJECT]` tags with specified payload (supports url, data, headers, cookies)
 - Multiple HTTP methods will result in separate request for each
