@@ -121,7 +121,7 @@ def fuzz(payload, specs, method):
         took_t = "{:.3f}".format(time.time() - start_t)
         parse_response(response, specs['extract'], payload, method, banned, took_t)
     except Exception as e:
-        log("error", "Error at %s %s: %s" % (method, payload, repr(e)))
+        log("error", "Failed on at %s %s: %s" % (method, payload, str(e)))
         if VERBOSE:
             log("error", traceback.format_exc())
         
