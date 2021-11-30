@@ -7,6 +7,8 @@ import logging
 import zlib
 import time
 import traceback
+import urllib
+import binascii
 
 logging.basicConfig(format='%(message)s')
 LOGGER = logging.getLogger()
@@ -115,7 +117,16 @@ def inject(specs_orig, payload):
 def fuzz(payload, specs, method):
     try:
         banned = specs['banned']
-        specs_injected = inject(specs, payload)
+        if specs['encode'] == "url":
+            specs_injected = inject(specs, urllib.parse.quote_plus(payload))
+        elif specs['encode'] == "urlall":
+            specs_injected = inject(specs, url_escape_all(payload))
+        elif specs['encode'] == "double":
+            specs_injected = inject(specs, url_escape_double(payload))
+        elif specs['encode'] == "unicode":
+            specs_injected = inject(specs, unicode_escape_all(payload))
+        else:
+            specs_injected = inject(specs, payload)
         start_t = time.time()
         response = send_http(specs_injected, method)
         took_t = "{:.3f}".format(time.time() - start_t)
@@ -194,6 +205,24 @@ def parse_methods(methods):
     if len(methods) > 1:
         methods.remove('GET')
     return list(set(methods))
+
+def url_escape_all(payload):
+    url_pld = "%".encode("utf8") + "%".encode("utf8").join([
+        binascii.hexlify(payload.encode("utf-8"))[i:i+2] for i in range(0, len(payload), 2)
+        ])
+    return url_pld.decode('utf8')
+
+def url_escape_double(payload):
+    url2_pld = "%25%".encode("utf8") + "%25%".encode("utf8").join([
+        binascii.hexlify(payload.encode("utf-8"))[i:i+2] for i in range(0, len(payload), 2)
+        ])
+    return url2_pld.decode('utf8')
+    
+def unicode_escape_all(payload):
+    uni_pld = "\\u00".encode("utf8") + "\\u00".encode("utf8").join([
+        binascii.hexlify(payload.encode("utf-8"))[i:i+2] for i in range(0, len(payload), 2)
+        ])
+    return uni_pld.decode('utf8')
             
 
 def handle_requests(requests_specs):
@@ -221,6 +250,7 @@ if __name__ == "__main__":
     parser.add_argument('--header','-H', help='HTTP Headers i.e. "TEST: true"', action='append', dest='headers')
     parser.add_argument('--cookie','-C', help='HTTP Cookies i.e. "TEST=true"', action='append', dest='cookies')
     parser.add_argument('--data','-D', help='HTTP request body', default='\r\n')
+    parser.add_argument('--encode','-N', help='Encode payload, url, urlall, double or unicode', default='none')
     parser.add_argument('--speed','-S', help='Number of threads', default='10')
     parser.add_argument('--method','-M', help='HTTP method to use', default=["GET"], action='append')
     parser.add_argument('--tag','-T', help='Tag to search for and replace', default="[INJECT]")
@@ -240,6 +270,7 @@ if __name__ == "__main__":
             "headers": parse_headers(args.headers) if args.headers else {},
             "cookies": parse_cookies(args.cookies) if args.cookies else {},
             "data": args.data,
+            "encode": args.encode,
             "method": parse_methods(args.method),
             "redirect": args.redirect,
             "timeout": args.timeout,
