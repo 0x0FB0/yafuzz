@@ -117,6 +117,8 @@ def inject(specs_orig, payload):
 def fuzz(payload, specs, method):
     try:
         banned = specs['banned']
+        if specs['replace']:
+            payload = pld_replace(specs['replace'], payload)
         if specs['encode'] == "url":
             specs_injected = inject(specs, urllib.parse.quote_plus(payload))
         elif specs['encode'] == "urlall":
@@ -206,6 +208,9 @@ def parse_methods(methods):
         methods.remove('GET')
     return list(set(methods))
 
+def parse_proxy(proxy):
+    return {'all': proxy} if proxy and re.match('https*://.+', proxy) else {}
+
 def url_escape_all(payload):
     url_pld = "%".encode("utf8") + "%".encode("utf8").join([
         binascii.hexlify(payload.encode("utf-8"))[i:i+2] for i in range(0, len(payload), 2)
@@ -223,6 +228,9 @@ def unicode_escape_all(payload):
         binascii.hexlify(payload.encode("utf-8"))[i:i+2] for i in range(0, len(payload), 2)
         ])
     return uni_pld.decode('utf8')
+
+def pld_replace(pattern, payload):
+    return payload.replace(pattern[0], pattern[1])
             
 
 def handle_requests(requests_specs):
@@ -243,46 +251,113 @@ def handle_requests(requests_specs):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Yet another HTTP fuzzer")
-    parser.add_argument('--url','-U', help='Target HTTP URL address', required=True) 
-    parser.add_argument('--wordlist','-W', help='Wordlist file path')
-    parser.add_argument('--extract','-E', help='RegEx pattern to extract from response')
-    parser.add_argument('--ban','-B', help='Ban specific crc32 hash or response code from output', default=['none'], action='append', dest='banned')
-    parser.add_argument('--header','-H', help='HTTP Headers i.e. "TEST: true"', action='append', dest='headers')
-    parser.add_argument('--cookie','-C', help='HTTP Cookies i.e. "TEST=true"', action='append', dest='cookies')
-    parser.add_argument('--data','-D', help='HTTP request body', default='\r\n')
-    parser.add_argument('--encode','-N', help='Encode payload, url, urlall, double or unicode', default='none')
-    parser.add_argument('--speed','-S', help='Number of threads', default='10')
-    parser.add_argument('--method','-M', help='HTTP method to use', default=["GET"], action='append')
-    parser.add_argument('--tag','-T', help='Tag to search for and replace', default="[INJECT]")
-    parser.add_argument('--redirect','-R', help='Accept HTTP redirects', action='store_true', default=False)
-    parser.add_argument('--timeout','-O', help='Timeout of the HTTP request', default='10')
-    parser.add_argument('--verbose','-V', help='Enable verbose output', action='store_true', default=False)
-    parser.add_argument('--proxy','-X', help='Enable HTTP proxy')
+    parser.add_argument('--url',
+                        '-U',
+                        help        =   'Target HTTP URL address',
+                        required    =   True,
+                        metavar     =   "URL") 
+    parser.add_argument('--wordlist',
+                        '-W',
+                        help        =   'Wordlist file path',
+                        metavar     =   'PATH')
+    parser.add_argument('--extract',
+                        '-E',
+                        help        =   'RegEx pattern to extract from response',
+                        metavar     =   "REGEX")
+    parser.add_argument('--ban',
+                        '-B',
+                        help        =   'Ban specific crc32 hash or response code from output', 
+                        default     =   ['none'], 
+                        action      =   'append', 
+                        dest        =   'banned',
+                        metavar     =   '3205226431')
+    parser.add_argument('--header',
+                        '-H', 
+                        help        =   'HTTP Headers', 
+                        action      =   'append', 
+                        dest        =   'headers',
+                        metavar     =   'NAME:VALUE')
+    parser.add_argument('--cookie',
+                        '-C',
+                        help        =   'HTTP Cookies',
+                        action      =   'append',
+                        dest        =   'cookies',
+                        metavar     =   'NAME=VALUE')
+    parser.add_argument('--data',
+                        '-D',
+                        help        =   'HTTP request body',
+                        default     =   '\r\n')
+    parser.add_argument('--encode',
+                        '-N',
+                        help        =   'Encode payload, url, urlall, double or unicode',
+                        default     =   'none')
+    parser.add_argument('--replace',
+                        '-L',
+                        help        =   'Replace pattern in payloads',
+                        nargs       =   2,
+                        metavar     =   ('SRC', 'DST'))
+    parser.add_argument('--speed',
+                        '-S',
+                        help        =   'Number of threads',
+                        default     =   '10',
+                        metavar     =   'THREADS')
+    parser.add_argument('--method',
+                        '-M',
+                        help        =   'HTTP method to use',
+                        default     =   ['GET'],
+                        action      =   'append',
+                        metavar     =   'POST')
+    parser.add_argument('--tag',
+                        '-T',
+                        help        =   'Tag to search for and replace',
+                        default     =   '[INJECT]',
+                        metavar     =   '[INJECT]')
+    parser.add_argument('--redirect',
+                        '-R',
+                        help        =   'Accept HTTP redirects',
+                        action      =   'store_true',
+                        default     =   False)
+    parser.add_argument('--timeout',
+                        '-O',
+                        help        =   'Timeout of the HTTP request',
+                        default     =   '10',
+                        metavar     =   'SECONDS')
+    parser.add_argument('--verbose',
+                        '-V',
+                        help        =   'Enable verbose output',
+                        action      =   'store_true',
+                        default=False)
+    parser.add_argument('--proxy',
+                        '-X',
+                        help        =   'Enable HTTP proxy',
+                        metavar     =   'http://127.0.0.1:8080')
     args = parser.parse_args()
     try:
+        
         VERBOSE = args.verbose
         WORDLIST = parse_wordlist(args.wordlist) if args.wordlist else None
         TAG = args.tag
         
         requests_specs = {
-            "url": args.url,       
-            "extract": args.extract,
-            "headers": parse_headers(args.headers) if args.headers else {},
-            "cookies": parse_cookies(args.cookies) if args.cookies else {},
-            "data": args.data,
-            "encode": args.encode,
-            "method": parse_methods(args.method),
-            "redirect": args.redirect,
-            "timeout": args.timeout,
-            "banned": args.banned,
-            "speed": args.speed,
-            "proxy": {'all': args.proxy} if args.proxy and re.match('https*://.+', args.proxy) else {}
+            "url"       :   args.url,       
+            "extract"   :   args.extract,
+            "headers"   :   parse_headers(args.headers) if args.headers else {},
+            "cookies"   :   parse_cookies(args.cookies) if args.cookies else {},
+            "data"      :   args.data,
+            "encode"    :   args.encode,
+            "replace"   :   args.replace,
+            "method"    :   parse_methods(args.method),
+            "redirect"  :   args.redirect,
+            "timeout"   :   args.timeout,
+            "banned"    :   args.banned,
+            "speed"     :   args.speed,
+            "proxy"     :   parse_proxy(args.proxy)
         }
+        
     except Exception as e:
         log("error", repr(e))
         parser.print_help()
-        sys.exit(1)
-        
+        sys.exit(1) 
     
     handle_requests(requests_specs)
     
